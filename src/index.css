@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply font-body bg-gray-50 text-gray-900 antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-kidbank-purple text-white font-display font-700 px-6 py-3 rounded-2xl
+           shadow-lg active:scale-95 transition-all duration-150
+           hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-kidbank-purple font-display font-700 px-6 py-3 rounded-2xl
+           border-2 border-kidbank-purple active:scale-95 transition-all duration-150
+           hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .card {
+    @apply bg-white rounded-3xl shadow-sm border border-gray-100 p-4;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-2xl border-2 border-gray-200
+           focus:border-kidbank-purple focus:outline-none transition-colors
+           font-body text-gray-800 bg-white;
+  }
+
+  .tab-active {
+    @apply bg-kidbank-purple text-white;
+  }
+
+  .tab-inactive {
+    @apply text-gray-500 hover:text-gray-700;
+  }
+
+  .skeleton {
+    @apply animate-pulse bg-gray-200 rounded-xl;
+  }
+
+  .badge-positive {
+    @apply bg-green-100 text-green-700 text-xs font-display font-700 px-2 py-0.5 rounded-full;
+  }
+
+  .badge-negative {
+    @apply bg-red-100 text-red-700 text-xs font-display font-700 px-2 py-0.5 rounded-full;
+  }
+
+  .badge-neutral {
+    @apply bg-gray-100 text-gray-600 text-xs font-display font-700 px-2 py-0.5 rounded-full;
+  }
+}
+
+@layer utilities {
+  .font-700 {
+    font-weight: 700;
+  }
+
+  .font-800 {
+    font-weight: 800;
+  }
+
+  .font-900 {
+    font-weight: 900;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* QR Scanner styles */
+#qr-reader {
+  border: none !important;
+  width: 100% !important;
+}
+
+#qr-reader video {
+  border-radius: 1rem;
+  width: 100% !important;
+}
+
+#qr-reader__scan_region {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+#qr-reader__dashboard {
+  padding: 8px !important;
+}
+
+#qr-reader__dashboard_section_csr button {
+  background: #7C3AED !important;
+  border-radius: 12px !important;
+  color: white !important;
+  border: none !important;
+  padding: 8px 16px !important;
+  font-family: 'Nunito', sans-serif !important;
+  font-weight: 700 !important;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 200ms, transform 200ms;
+}
