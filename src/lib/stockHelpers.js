@@ -40,6 +40,26 @@ export function daysUntil(dateStr) {
   return Math.max(0, Math.ceil(diffMs / 86400000))
 }
 
+export function timeUntilLabel(dateStr) {
+  const diffMs = new Date(dateStr) - new Date()
+  if (diffMs <= 0) return 'Matured'
+  const hrs = Math.floor(diffMs / 3600000)
+  const mins = Math.floor((diffMs % 3600000) / 60000)
+  if (hrs >= 24) return `${Math.ceil(diffMs / 86400000)}d`
+  if (hrs > 0) return `${hrs}h ${mins}m`
+  return `${mins}m`
+}
+
+// Compressed time: 1 app-day = 6 real minutes (30 days = 3 hrs)
+export function fdMaturityDate(durationDays) {
+  return new Date(Date.now() + durationDays * 6 * 60 * 1000)
+}
+
+// Compressed time: 1 app-month = 1 real day
+export function rdNextDueDate() {
+  return new Date(Date.now() + 24 * 60 * 60 * 1000)
+}
+
 export const TX_ICONS = {
   deposit: { icon: '⬆️', color: 'text-green-600', bg: 'bg-green-50', label: 'Deposit' },
   withdrawal: { icon: '⬇️', color: 'text-red-600', bg: 'bg-red-50', label: 'Withdrawal' },

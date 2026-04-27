@@ -7,7 +7,7 @@ import {
 } from '../../lib/formatCurrency'
 import {
   getPriceChange, getFDMaturityAmount, getRDMaturityAmount,
-  daysUntil, STOCK_EMOJI, STOCK_COLOR
+  daysUntil, timeUntilLabel, fdMaturityDate, rdNextDueDate, STOCK_EMOJI, STOCK_COLOR
 } from '../../lib/stockHelpers'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -241,8 +241,7 @@ function FDSection({ userId }) {
     if (principal > (account?.balance || 0)) { toast.error('Insufficient balance'); return }
 
     setSubmitting(true)
-    const maturityDate = new Date()
-    maturityDate.setDate(maturityDate.getDate() + duration)
+    const maturityDate = fdMaturityDate(duration)
 
     const { error } = await supabase.rpc('create_fixed_deposit', {
       p_user_id: userId,
@@ -341,7 +340,7 @@ function FDSection({ userId }) {
                 <div className="flex justify-between text-sm">
                   <span className="font-body text-gray-500">{fd.duration_days} days</span>
                   <span className="font-display font-700 text-orange-500">
-                    {daysUntil(fd.maturity_date)}d left
+                    {timeUntilLabel(fd.maturity_date)} left
                   </span>
                 </div>
               </div>
@@ -382,8 +381,7 @@ function RDSection({ userId }) {
     if (amt > (account?.balance || 0)) { toast.error('Insufficient balance for first installment'); return }
 
     setSubmitting(true)
-    const nextDue = new Date()
-    nextDue.setMonth(nextDue.getMonth() + 1)
+    const nextDue = rdNextDueDate()
 
     await supabase.from('recurring_deposits').insert({
       user_id: userId,
@@ -476,7 +474,7 @@ function RDSection({ userId }) {
                     {rd.installments_paid}/{rd.duration_months} paid
                   </span>
                   <span className="font-display font-700 text-orange-500">
-                    Next: {daysUntil(rd.next_due_date)}d
+                    Next: {timeUntilLabel(rd.next_due_date)}
                   </span>
                 </div>
               </div>

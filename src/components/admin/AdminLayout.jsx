@@ -27,7 +27,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             <span className="text-2xl">🏦</span>
             <div>
-              <span className="font-display font-900 text-kidbank-purple text-lg">KidBank</span>
+              <span className="font-display font-900 text-kidbank-purple text-lg">BankOfMuSo</span>
               <span className="ml-2 text-xs font-display font-700 bg-purple-100 text-kidbank-purple px-2 py-0.5 rounded-full">Admin</span>
             </div>
           </div>

@@ -33,11 +33,10 @@ export default function PayTab() {
 
   const handleScan = (result) => {
     setQrPayload(result)
-    // Use the first ~30 chars as a display label
     const label = result.length > 30 ? result.substring(0, 30) + '…' : result
     setPayTo(label)
     setScanning(false)
-    toast.success('QR scanned! 📷')
+    setAmount('')
   }
 
   const handlePay = async () => {
@@ -85,9 +84,61 @@ export default function PayTab() {
           <h3 className="font-display font-800 text-gray-800 mb-4 text-center">Scan QR Code</h3>
           <QRScanner onScan={handleScan} onClose={() => setScanning(false)} />
         </div>
+      ) : qrPayload && !submitting && payTo && !amount ? (
+        /* UPI-style post-scan: just enter amount */
+        <div className="card space-y-4">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">📷</div>
+            <p className="font-display font-800 text-gray-800 text-lg">{payTo}</p>
+            <p className="font-display text-gray-400 text-sm">QR scanned successfully</p>
+          </div>
+
+          <div>
+            <label className="font-display font-700 text-gray-500 text-sm block mb-1">Enter Amount</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-display font-800 text-gray-500 text-lg">₹</span>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="input-field pl-9 text-xl font-display font-800"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {[10, 20, 50, 100].map((a) => (
+              <button key={a} onClick={() => setAmount(String(a))}
+                className="flex-1 py-2 bg-gray-100 rounded-xl font-display font-700 text-gray-600 text-sm hover:bg-purple-100 hover:text-kidbank-purple transition-colors">
+                ₹{a}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <label className="font-display font-700 text-gray-500 text-sm block mb-1">Note (optional)</label>
+            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Canteen lunch" className="input-field" />
+          </div>
+
+          <div className="flex justify-between text-sm">
+            <span className="font-display text-gray-400">Balance</span>
+            <span className="font-display font-700 text-gray-700">{formatINR(account?.balance || 0)}</span>
+          </div>
+
+          <button onClick={handlePay} disabled={!amount}
+            className="w-full bg-gradient-to-r from-kidbank-purple to-kidbank-pink text-white font-display font-800 py-4 rounded-2xl active:scale-95 transition-all disabled:opacity-50 text-lg">
+            Pay {amount ? formatINR(Number(amount)) : ''} 🚀
+          </button>
+          <button onClick={() => { setQrPayload(null); setPayTo('') }}
+            className="w-full text-gray-400 font-display font-700 text-sm py-2">
+            Cancel
+          </button>
+        </div>
       ) : (
         <>
-          {/* Scan button */}
           <button
             onClick={() => setScanning(true)}
             className="w-full bg-gradient-to-r from-kidbank-purple to-kidbank-pink text-white
@@ -98,43 +149,28 @@ export default function PayTab() {
             Scan QR to Pay
           </button>
 
-          {/* Manual / Post-scan form */}
           <div className="card space-y-3">
-            <h3 className="font-display font-800 text-gray-800">Payment Details</h3>
+            <h3 className="font-display font-800 text-gray-800">Pay Manually</h3>
 
             <div>
               <label className="font-display font-700 text-gray-500 text-sm block mb-1">Pay to</label>
-              <input
-                type="text"
-                value={payTo}
-                onChange={(e) => setPayTo(e.target.value)}
-                placeholder="Enter name or scan QR"
-                className="input-field"
-              />
+              <input type="text" value={payTo} onChange={(e) => setPayTo(e.target.value)}
+                placeholder="Enter name" className="input-field" />
             </div>
 
             <div>
               <label className="font-display font-700 text-gray-500 text-sm block mb-1">Amount</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-display font-700 text-gray-400">₹</span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="input-field pl-8"
-                />
+                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00" className="input-field pl-8" />
               </div>
             </div>
 
-            {/* Quick amounts */}
             <div className="flex gap-2">
               {[10, 20, 50, 100].map((a) => (
-                <button
-                  key={a}
-                  onClick={() => setAmount(String(a))}
-                  className="flex-1 py-2 bg-gray-100 rounded-xl font-display font-700 text-gray-600 text-sm hover:bg-purple-100 hover:text-kidbank-purple transition-colors"
-                >
+                <button key={a} onClick={() => setAmount(String(a))}
+                  className="flex-1 py-2 bg-gray-100 rounded-xl font-display font-700 text-gray-600 text-sm hover:bg-purple-100 hover:text-kidbank-purple transition-colors">
                   ₹{a}
                 </button>
               ))}
@@ -142,27 +178,17 @@ export default function PayTab() {
 
             <div>
               <label className="font-display font-700 text-gray-500 text-sm block mb-1">Note (optional)</label>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. Canteen lunch"
-                className="input-field"
-              />
+              <input type="text" value={description} onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. Canteen lunch" className="input-field" />
             </div>
 
-            {/* Balance indicator */}
             <div className="flex justify-between text-sm">
               <span className="font-display text-gray-400">Your balance</span>
               <span className="font-display font-700 text-gray-700">{formatINR(account?.balance || 0)}</span>
             </div>
 
-            <button
-              onClick={handlePay}
-              disabled={submitting || !payTo || !amount}
-              className="w-full bg-kidbank-purple text-white font-display font-800 py-4 rounded-2xl
-                         active:scale-95 transition-all disabled:opacity-50 text-lg"
-            >
+            <button onClick={handlePay} disabled={submitting || !payTo || !amount}
+              className="w-full bg-kidbank-purple text-white font-display font-800 py-4 rounded-2xl active:scale-95 transition-all disabled:opacity-50 text-lg">
               {submitting ? 'Processing…' : `Pay ${amount ? formatINR(Number(amount)) : ''} 🚀`}
             </button>
           </div>

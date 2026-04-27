@@ -18,6 +18,7 @@ export default function AdminNewsTab() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     loadData()
@@ -58,6 +59,13 @@ export default function AdminNewsTab() {
     }
 
     toast.success('Article published! 📰')
+    await loadData()
+  }
+
+  const handleDelete = async (id) => {
+    await supabase.from('news').delete().eq('id', id)
+    setDeletingId(null)
+    toast.success('Article deleted')
     await loadData()
   }
 
@@ -233,14 +241,39 @@ export default function AdminNewsTab() {
                       <p className="font-body text-gray-500 text-sm line-clamp-2">{article.body}</p>
                       <p className="font-body text-gray-400 text-xs mt-1">{timeAgo(article.created_at)}</p>
                     </div>
-                    {!article.is_published && (
-                      <button
-                        onClick={() => handlePublish(article.id, stock)}
-                        className="flex-shrink-0 bg-green-500 text-white font-display font-700 px-3 py-1.5 rounded-xl text-sm"
-                      >
-                        Publish
-                      </button>
-                    )}
+                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                      {!article.is_published && (
+                        <button
+                          onClick={() => handlePublish(article.id, stock)}
+                          className="bg-green-500 text-white font-display font-700 px-3 py-1.5 rounded-xl text-sm"
+                        >
+                          Publish
+                        </button>
+                      )}
+                      {deletingId === article.id ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleDelete(article.id)}
+                            className="bg-red-500 text-white font-display font-700 px-2 py-1.5 rounded-xl text-xs"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setDeletingId(null)}
+                            className="bg-gray-200 text-gray-600 font-display font-700 px-2 py-1.5 rounded-xl text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingId(article.id)}
+                          className="bg-red-100 text-red-600 font-display font-700 px-3 py-1.5 rounded-xl text-sm"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )

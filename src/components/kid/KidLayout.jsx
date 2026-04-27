@@ -24,7 +24,7 @@ export default function KidLayout() {
       <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-2">
           <span className="text-2xl">🏦</span>
-          <span className="font-display font-900 text-kidbank-purple text-lg">KidBank</span>
+          <span className="font-display font-900 text-kidbank-purple text-lg">BankOfMuSo</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="font-display font-700 text-gray-600 text-sm">
