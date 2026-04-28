@@ -23,6 +23,15 @@ function GoalCard({ goal, onAllocate, onDelete, onClaim }) {
   const [allocAmt, setAllocAmt] = useState('')
   const [confirmingWithdraw, setConfirmingWithdraw] = useState(false)
 
+  const remaining = Math.max(0, goal.target_amount - goal.current_amount)
+  const dailySaving = goal.duration_days && goal.duration_days > 0
+    ? +(remaining / goal.duration_days).toFixed(2)
+    : null
+
+  // days elapsed since creation
+  const daysElapsed = Math.floor((Date.now() - new Date(goal.created_at)) / 86400000)
+  const daysLeft = goal.duration_days ? Math.max(0, goal.duration_days - daysElapsed) : null
+
   return (
     <div className={`card ${isComplete ? 'border-2 border-kidbank-green' : ''}`}>
       <div className="flex items-start justify-between mb-3">
@@ -31,6 +40,11 @@ function GoalCard({ goal, onAllocate, onDelete, onClaim }) {
           <p className="font-display font-700 text-gray-400 text-sm">
             {formatINR(goal.current_amount)} / {formatINR(goal.target_amount)}
           </p>
+          {goal.duration_days && !isComplete && (
+            <p className="font-display font-700 text-xs text-kidbank-purple mt-0.5">
+              {daysLeft > 0 ? `${daysLeft} days left` : 'Past deadline'}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isComplete && <span className="text-2xl animate-bounce">🏆</span>}
@@ -53,9 +67,14 @@ function GoalCard({ goal, onAllocate, onDelete, onClaim }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="font-display font-700 text-gray-400 text-xs text-right mb-3">
-        {pct.toFixed(0)}% complete
-      </p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="font-display font-700 text-gray-400 text-xs">{pct.toFixed(0)}% complete</p>
+        {dailySaving !== null && !isComplete && remaining > 0 && (
+          <p className="font-display font-700 text-xs text-kidbank-purple">
+            Save {formatINR(dailySaving)}/day
+          </p>
+        )}
+      </div>
 
       {isComplete ? (
         <div className="bg-green-50 rounded-2xl p-3 text-center space-y-2">
@@ -139,6 +158,7 @@ export default function GoalsTab() {
   const [showForm, setShowForm] = useState(false)
   const [goalName, setGoalName] = useState('')
   const [targetAmount, setTargetAmount] = useState('')
+  const [durationDays, setDurationDays] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
@@ -161,16 +181,19 @@ export default function GoalsTab() {
     if (!targetAmount || Number(targetAmount) <= 0) { toast.error('Enter target amount'); return }
 
     setSubmitting(true)
+    const dur = durationDays ? Number(durationDays) : null
     await supabase.from('savings_goals').insert({
       user_id: profile.id,
       goal_name: goalName.trim(),
       target_amount: Number(targetAmount),
       current_amount: 0,
+      ...(dur && dur > 0 ? { duration_days: dur } : {}),
     })
 
     await loadGoals()
     setGoalName('')
     setTargetAmount('')
+    setDurationDays('')
     setShowForm(false)
     toast.success('Goal created! 🎯')
     setSubmitting(false)
@@ -296,6 +319,24 @@ export default function GoalsTab() {
               className="input-field pl-8"
             />
           </div>
+          <div className="relative mb-3">
+            <input
+              type="number"
+              value={durationDays}
+              onChange={(e) => setDurationDays(e.target.value)}
+              placeholder="Duration in days (optional)"
+              className="input-field"
+              min="1"
+            />
+          </div>
+          {targetAmount && durationDays && Number(durationDays) > 0 && (
+            <div className="bg-purple-50 rounded-2xl p-3 mb-3 flex items-center gap-2">
+              <span className="text-lg">💡</span>
+              <p className="font-display font-700 text-kidbank-purple text-sm">
+                Save {formatINR(+(Number(targetAmount) / Number(durationDays)).toFixed(2))} per day to hit your goal in {durationDays} days!
+              </p>
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={handleCreate} disabled={submitting} className="flex-1 btn-primary py-3">
               {submitting ? 'Creating…' : 'Create Goal 🎯'}
