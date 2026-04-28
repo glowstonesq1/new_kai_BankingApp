@@ -6,13 +6,13 @@ import InvestTab from '../components/kid/InvestTab'
 import PayTab from '../components/kid/PayTab'
 import KidNewsTab from '../components/kid/NewsTab'
 import GoalsTab from '../components/kid/GoalsTab'
+import FinancialReport from './FinancialReport'
 import useStore from '../store/useStore'
 import { supabase } from '../lib/supabase'
 
 export default function KidDashboard() {
   const { setStocks } = useStore()
 
-  // Pre-load stocks for the whole dashboard
   useEffect(() => {
     supabase.from('stocks').select('*').then(({ data }) => {
       if (data) setStocks(data)
@@ -28,6 +28,7 @@ export default function KidDashboard() {
         <Route path="pay" element={<PayTab />} />
         <Route path="news" element={<KidNewsTab />} />
         <Route path="goals" element={<GoalsTab />} />
+        <Route path="report" element={<FinancialReport />} />
       </Route>
     </Routes>
   )

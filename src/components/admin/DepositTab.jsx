@@ -4,6 +4,7 @@ import { formatINR } from '../../lib/formatCurrency'
 import toast from 'react-hot-toast'
 
 const QUICK_AMOUNTS = [50, 100, 200, 500]
+const TAX_RATE = 0.1
 
 export default function DepositTab() {
   const [kids, setKids] = useState([])
@@ -33,8 +34,11 @@ export default function DepositTab() {
       .then(({ data }) => setBalance(data?.balance ?? null))
   }, [selectedKid])
 
+  const amt = Number(amount)
+  const taxDeducted = type === 'deposit' && amt > 0 ? +(amt * TAX_RATE).toFixed(2) : 0
+  const kidReceives = type === 'deposit' && amt > 0 ? +(amt - taxDeducted).toFixed(2) : amt
+
   const handleSubmit = async () => {
-    const amt = Number(amount)
     if (!selectedKid) { toast.error('Select a kid'); return }
     if (!amt || amt <= 0) { toast.error('Enter valid amount'); return }
 
@@ -45,8 +49,9 @@ export default function DepositTab() {
 
     setLoading(true)
     try {
+      const creditAmount = type === 'deposit' ? kidReceives : amt
       const newBalance = type === 'deposit'
-        ? (balance || 0) + amt
+        ? (balance || 0) + creditAmount
         : (balance || 0) - amt
 
       await supabase.from('accounts').update({
@@ -54,21 +59,32 @@ export default function DepositTab() {
         updated_at: new Date().toISOString(),
       }).eq('user_id', selectedKid)
 
+      const txDesc = type === 'deposit'
+        ? (description || `Admin deposit (${formatINR(taxDeducted)} tax deducted)`)
+        : (description || 'Admin withdrawal')
+
       const { data: tx } = await supabase.from('transactions').insert({
         user_id: selectedKid,
         type,
-        amount: amt,
-        description: description || (type === 'deposit' ? 'Admin deposit' : 'Admin withdrawal'),
+        amount: creditAmount,
+        description: txDesc,
       }).select().single()
 
       setBalance(newBalance)
-      setLastTx({ ...tx, kidName: kids.find((k) => k.id === selectedKid)?.display_name, newBalance })
+      setLastTx({
+        ...tx,
+        grossAmount: amt,
+        taxDeducted,
+        kidReceives: creditAmount,
+        kidName: kids.find((k) => k.id === selectedKid)?.display_name,
+        newBalance,
+      })
       setAmount('')
       setDescription('')
 
       toast.success(
         type === 'deposit'
-          ? `Deposited ${formatINR(amt)} successfully! ✅`
+          ? `Deposited ${formatINR(creditAmount)} to kid (after 10% tax) ✅`
           : `Withdrawn ${formatINR(amt)} successfully! ✅`
       )
     } catch (err) {
@@ -157,6 +173,24 @@ export default function DepositTab() {
           </div>
         </div>
 
+        {/* Tax breakdown for deposits */}
+        {type === 'deposit' && amt > 0 && (
+          <div className="bg-yellow-50 rounded-2xl p-3 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="font-display text-gray-500">Gross deposit</span>
+              <span className="font-display font-700 text-gray-700">{formatINR(amt)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-display text-orange-600">Tax deducted (10%)</span>
+              <span className="font-display font-700 text-orange-600">-{formatINR(taxDeducted)}</span>
+            </div>
+            <div className="flex justify-between border-t border-yellow-200 pt-1 mt-1">
+              <span className="font-display font-800 text-gray-700">Kid receives</span>
+              <span className="font-display font-800 text-green-600">{formatINR(kidReceives)}</span>
+            </div>
+          </div>
+        )}
+
         {/* Description */}
         <div>
           <label className="block font-display font-700 text-gray-600 text-sm mb-1.5">
@@ -180,8 +214,8 @@ export default function DepositTab() {
           {loading
             ? 'Processing…'
             : type === 'deposit'
-            ? `Deposit ${amount ? formatINR(Number(amount)) : ''} ✅`
-            : `Withdraw ${amount ? formatINR(Number(amount)) : ''} ⬇️`}
+            ? `Deposit ${amt > 0 ? `(Kid gets ${formatINR(kidReceives)})` : ''} ✅`
+            : `Withdraw ${amount ? formatINR(amt) : ''} ⬇️`}
         </button>
       </div>
 
@@ -192,9 +226,22 @@ export default function DepositTab() {
             <span className="text-2xl">✅</span>
             <h3 className="font-display font-800 text-green-800">Transaction Confirmed!</h3>
           </div>
-          <p className="font-display font-700 text-green-700">
-            {lastTx.type === 'deposit' ? 'Deposited' : 'Withdrawn'} {formatINR(lastTx.amount)} {lastTx.type === 'deposit' ? 'to' : 'from'} <span className="font-800">{lastTx.kidName}</span>
-          </p>
+          {lastTx.type === 'deposit' ? (
+            <>
+              <p className="font-display font-700 text-green-700">
+                Deposited to <span className="font-800">{lastTx.kidName}</span>
+              </p>
+              <div className="mt-2 text-sm space-y-0.5">
+                <p className="font-display text-green-600">Gross: {formatINR(lastTx.grossAmount)}</p>
+                <p className="font-display text-orange-600">Tax (10%): -{formatINR(lastTx.taxDeducted)}</p>
+                <p className="font-display font-800 text-green-700">Kid received: {formatINR(lastTx.kidReceives)}</p>
+              </div>
+            </>
+          ) : (
+            <p className="font-display font-700 text-green-700">
+              Withdrawn {formatINR(lastTx.amount)} from <span className="font-800">{lastTx.kidName}</span>
+            </p>
+          )}
           <p className="font-display text-green-600 text-sm mt-1">
             New balance: <span className="font-800">{formatINR(lastTx.newBalance)}</span>
           </p>

@@ -1,5 +1,11 @@
 import { formatINR, formatPercent } from '../../lib/formatCurrency'
-import { getPriceChange, STOCK_EMOJI, STOCK_COLOR } from '../../lib/stockHelpers'
+import { getPriceChange, STOCK_EMOJI, STOCK_COLOR, STOCK_CAP } from '../../lib/stockHelpers'
+
+const CAP_STYLE = {
+  large: { label: 'Large Cap', bg: 'bg-blue-100', text: 'text-blue-700' },
+  mid: { label: 'Mid Cap', bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  small: { label: 'Small Cap', bg: 'bg-green-100', text: 'text-green-700' },
+}
 
 export default function StockCard({ stock, onClick, holding }) {
   const { pct, direction } = getPriceChange(stock.current_price, stock.previous_price)
@@ -7,6 +13,8 @@ export default function StockCard({ stock, onClick, holding }) {
   const color = STOCK_COLOR[stock.ticker] || '#7C3AED'
   const isUp = direction === 'up'
   const isDown = direction === 'down'
+  const cap = STOCK_CAP[stock.ticker]
+  const capStyle = cap ? CAP_STYLE[cap] : null
 
   return (
     <button
@@ -25,7 +33,14 @@ export default function StockCard({ stock, onClick, holding }) {
             <p className="font-display font-800 text-gray-800 text-sm leading-tight">
               {stock.company_name}
             </p>
-            <p className="font-display font-700 text-gray-400 text-xs">{stock.ticker}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="font-display font-700 text-gray-400 text-xs">{stock.ticker}</p>
+              {capStyle && (
+                <span className={`text-[10px] font-display font-700 px-1.5 py-0.5 rounded-full ${capStyle.bg} ${capStyle.text}`}>
+                  {capStyle.label}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

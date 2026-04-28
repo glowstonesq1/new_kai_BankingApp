@@ -6,6 +6,7 @@ import DepositTab from '../components/admin/DepositTab'
 import MarketTab from '../components/admin/MarketTab'
 import AdminNewsTab from '../components/admin/NewsTab'
 import SettingsTab from '../components/admin/SettingsTab'
+import FinancialReport from './FinancialReport'
 
 export default function AdminDashboard() {
   return (
@@ -18,6 +19,7 @@ export default function AdminDashboard() {
         <Route path="market" element={<MarketTab />} />
         <Route path="news" element={<AdminNewsTab />} />
         <Route path="settings" element={<SettingsTab />} />
+        <Route path="report/:kidId" element={<FinancialReport />} />
       </Route>
     </Routes>
   )

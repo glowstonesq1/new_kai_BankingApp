@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import useStore from '../../store/useStore'
 import { formatINR, timeAgo } from '../../lib/formatCurrency'
 import TransactionList from '../shared/TransactionList'
 import toast from 'react-hot-toast'
@@ -26,12 +28,10 @@ function CreateKidModal({ onClose, onCreated }) {
       const dname = displayName.trim()
       const email = `${uname}@kidbank.app`
 
-      // Check username not already taken
       const { data: existing } = await supabase
         .from('users').select('id').eq('username', uname).maybeSingle()
       if (existing) { toast.error('Username already taken'); setLoading(false); return }
 
-      // Save admin session — signUp may replace it if email confirm is disabled
       const { data: { session: adminSession } } = await supabase.auth.getSession()
 
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -40,7 +40,6 @@ function CreateKidModal({ onClose, onCreated }) {
         options: { data: { username: uname, display_name: dname, role: 'kid' } },
       })
 
-      // Always restore admin session immediately
       if (adminSession) {
         await supabase.auth.setSession({
           access_token: adminSession.access_token,
@@ -50,12 +49,10 @@ function CreateKidModal({ onClose, onCreated }) {
 
       if (signUpError) throw signUpError
       if (!signUpData?.user) throw new Error('User creation failed')
-      // Empty identities means email already registered
       if (signUpData.user.identities?.length === 0) throw new Error('Email already in use')
 
       const uid = signUpData.user.id
 
-      // handle_new_user trigger auto-creates rows; ensure correct values
       await supabase.from('users').upsert({
         id: uid, username: uname, display_name: dname, role: 'kid', is_frozen: false,
       }, { onConflict: 'id' })
@@ -122,11 +119,101 @@ function CreateKidModal({ onClose, onCreated }) {
   )
 }
 
+function CommentsSection({ kidId }) {
+  const { profile } = useStore()
+  const [comments, setComments] = useState([])
+  const [newComment, setNewComment] = useState('')
+  const [posting, setPosting] = useState(false)
+
+  useEffect(() => {
+    loadComments()
+  }, [kidId])
+
+  const loadComments = async () => {
+    const { data } = await supabase
+      .from('kid_comments')
+      .select('*')
+      .eq('kid_id', kidId)
+      .order('created_at', { ascending: false })
+    setComments(data || [])
+  }
+
+  const handlePost = async () => {
+    if (!newComment.trim()) return
+    setPosting(true)
+    const { error } = await supabase.from('kid_comments').insert({
+      kid_id: kidId,
+      admin_id: profile?.id,
+      comment: newComment.trim(),
+    })
+    if (error) {
+      toast.error('Failed to post comment')
+    } else {
+      setNewComment('')
+      await loadComments()
+      toast.success('Suggestion posted! 💬')
+    }
+    setPosting(false)
+  }
+
+  const handleDelete = async (id) => {
+    await supabase.from('kid_comments').delete().eq('id', id)
+    await loadComments()
+  }
+
+  return (
+    <div>
+      <h3 className="font-display font-800 text-gray-700 mb-2">💬 Suggestions for Kid</h3>
+
+      {/* Post new comment */}
+      <div className="flex gap-2 mb-3">
+        <textarea
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          placeholder="Write a suggestion or tip for this kid…"
+          rows={2}
+          className="input-field flex-1 resize-none text-sm"
+        />
+        <button
+          onClick={handlePost}
+          disabled={posting || !newComment.trim()}
+          className="bg-kidbank-purple text-white font-display font-700 px-4 rounded-xl text-sm disabled:opacity-50 active:scale-95 transition-all self-stretch"
+        >
+          {posting ? '…' : 'Post'}
+        </button>
+      </div>
+
+      {/* Comments list */}
+      {comments.length === 0 ? (
+        <p className="font-display text-gray-400 text-sm text-center py-3">No suggestions yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {comments.map((c) => (
+            <div key={c.id} className="bg-purple-50 rounded-2xl p-3 flex gap-2">
+              <div className="flex-1">
+                <p className="font-display font-700 text-gray-700 text-sm">{c.comment}</p>
+                <p className="font-display text-gray-400 text-xs mt-1">{timeAgo(c.created_at)}</p>
+              </div>
+              <button
+                onClick={() => handleDelete(c.id)}
+                className="text-gray-300 hover:text-red-400 text-sm flex-shrink-0 mt-0.5"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function KidProfileModal({ kid, onClose, onUpdate }) {
+  const navigate = useNavigate()
   const [transactions, setTransactions] = useState([])
   const [portfolio, setPortfolio] = useState([])
   const [loading, setLoading] = useState(true)
-  const [confirming, setConfirming] = useState(null) // 'freeze' | 'reset' | 'delete'
+  const [confirming, setConfirming] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -178,6 +265,7 @@ function KidProfileModal({ kid, onClose, onUpdate }) {
     await supabase.from('fixed_deposits').delete().eq('user_id', kid.id)
     await supabase.from('recurring_deposits').delete().eq('user_id', kid.id)
     await supabase.from('savings_goals').delete().eq('user_id', kid.id)
+    await supabase.from('kid_comments').delete().eq('kid_id', kid.id)
     await supabase.from('accounts').delete().eq('user_id', kid.id)
     await supabase.from('users').delete().eq('id', kid.id)
     toast.success('Account deleted')
@@ -193,7 +281,15 @@ function KidProfileModal({ kid, onClose, onUpdate }) {
             <h2 className="font-display font-800 text-gray-800">{kid.display_name}</h2>
             <p className="font-display text-gray-400 text-sm">@{kid.username} · {formatINR(kid.balance)}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 text-xl">✕</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { onClose(); navigate(`/admin/report/${kid.id}`) }}
+              className="bg-purple-100 text-kidbank-purple font-display font-700 px-3 py-1.5 rounded-xl text-sm"
+            >
+              📊 Report
+            </button>
+            <button onClick={onClose} className="text-gray-400 text-xl">✕</button>
+          </div>
         </div>
 
         <div className="p-4 space-y-4">
@@ -285,6 +381,9 @@ function KidProfileModal({ kid, onClose, onUpdate }) {
               </div>
             </div>
           </div>
+
+          {/* Comments section */}
+          <CommentsSection kidId={kid.id} />
 
           {/* Transactions */}
           <div>

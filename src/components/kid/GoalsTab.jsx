@@ -14,13 +14,14 @@ async function fireConfetti() {
   })
 }
 
-function GoalCard({ goal, onAllocate, onDelete }) {
+function GoalCard({ goal, onAllocate, onDelete, onClaim }) {
   const pct = goal.target_amount > 0
     ? Math.min(100, (goal.current_amount / goal.target_amount) * 100)
     : 0
   const isComplete = pct >= 100
   const [allocating, setAllocating] = useState(false)
   const [allocAmt, setAllocAmt] = useState('')
+  const [confirmingWithdraw, setConfirmingWithdraw] = useState(false)
 
   return (
     <div className={`card ${isComplete ? 'border-2 border-kidbank-green' : ''}`}>
@@ -33,12 +34,15 @@ function GoalCard({ goal, onAllocate, onDelete }) {
         </div>
         <div className="flex items-center gap-2">
           {isComplete && <span className="text-2xl animate-bounce">🏆</span>}
-          <button
-            onClick={() => onDelete(goal.id)}
-            className="text-gray-300 hover:text-red-400 transition-colors text-lg"
-          >
-            ✕
-          </button>
+          {!isComplete && (
+            <button
+              onClick={() => setConfirmingWithdraw(true)}
+              className="text-gray-300 hover:text-red-400 transition-colors text-lg"
+              title="Cancel goal & return money"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
@@ -54,8 +58,34 @@ function GoalCard({ goal, onAllocate, onDelete }) {
       </p>
 
       {isComplete ? (
-        <div className="bg-green-50 rounded-2xl p-3 text-center">
+        <div className="bg-green-50 rounded-2xl p-3 text-center space-y-2">
           <p className="font-display font-800 text-green-600">🎉 Goal Achieved! Amazing work!</p>
+          <button
+            onClick={() => onClaim(goal)}
+            className="w-full bg-green-500 text-white font-display font-800 py-3 rounded-xl active:scale-95 transition-all"
+          >
+            Claim {formatINR(goal.current_amount)} 🏆
+          </button>
+        </div>
+      ) : confirmingWithdraw ? (
+        <div className="bg-red-50 rounded-2xl p-3 text-sm space-y-2">
+          <p className="font-display font-700 text-red-700">
+            Cancel goal and return {formatINR(goal.current_amount)} to your balance?
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { onDelete(goal); setConfirmingWithdraw(false) }}
+              className="flex-1 bg-red-500 text-white font-display font-700 py-2 rounded-xl text-sm"
+            >
+              Yes, Return Money
+            </button>
+            <button
+              onClick={() => setConfirmingWithdraw(false)}
+              className="flex-1 bg-gray-200 text-gray-600 font-display font-700 py-2 rounded-xl text-sm"
+            >
+              Keep Saving
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -166,17 +196,58 @@ export default function GoalsTab() {
     await loadGoals()
 
     if (isNowComplete) {
-      toast.success(`🎉 Goal "${goal.goal_name}" completed!`, { duration: 5000 })
+      toast.success(`🎉 Goal "${goal.goal_name}" completed! Tap Claim to get your money.`, { duration: 5000 })
       await fireConfetti()
     } else {
       toast.success(`Added ${formatINR(amount)} to ${goal.goal_name}!`)
     }
   }
 
-  const handleDelete = async (goalId) => {
-    await supabase.from('savings_goals').delete().eq('id', goalId)
+  const handleClaim = async (goal) => {
+    await supabase.from('accounts').update({
+      balance: (account?.balance || 0) + goal.current_amount,
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', profile.id)
+
+    await supabase.from('transactions').insert({
+      user_id: profile.id,
+      type: 'deposit',
+      amount: goal.current_amount,
+      description: `Goal achieved: ${goal.goal_name} 🎉`,
+    })
+
+    await supabase.from('savings_goals').delete().eq('id', goal.id)
+
+    await refreshAccount()
     await loadGoals()
-    toast.success('Goal removed')
+    toast.success(`${formatINR(goal.current_amount)} added to your balance! 🎉`)
+    await fireConfetti()
+  }
+
+  const handleDelete = async (goal) => {
+    if (goal.current_amount > 0) {
+      await supabase.from('accounts').update({
+        balance: (account?.balance || 0) + goal.current_amount,
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', profile.id)
+
+      await supabase.from('transactions').insert({
+        user_id: profile.id,
+        type: 'deposit',
+        amount: goal.current_amount,
+        description: `Goal cancelled: ${goal.goal_name} — savings returned`,
+      })
+
+      await refreshAccount()
+    }
+
+    await supabase.from('savings_goals').delete().eq('id', goal.id)
+    await loadGoals()
+    toast.success(
+      goal.current_amount > 0
+        ? `Returned ${formatINR(goal.current_amount)} to balance`
+        : 'Goal removed'
+    )
   }
 
   const totalSaved = goals.reduce((s, g) => s + g.current_amount, 0)
@@ -257,6 +328,7 @@ export default function GoalsTab() {
               goal={goal}
               onAllocate={handleAllocate}
               onDelete={handleDelete}
+              onClaim={handleClaim}
             />
           ))}
         </div>

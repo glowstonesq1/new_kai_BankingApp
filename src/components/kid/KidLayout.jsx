@@ -5,8 +5,8 @@ const NAV_ITEMS = [
   { to: '/dashboard/home', icon: '🏠', label: 'Home' },
   { to: '/dashboard/invest', icon: '📈', label: 'Invest' },
   { to: '/dashboard/pay', icon: '💳', label: 'Pay' },
-  { to: '/dashboard/news', icon: '📰', label: 'News' },
   { to: '/dashboard/goals', icon: '🎯', label: 'Goals' },
+  { to: '/dashboard/report', icon: '📊', label: 'Report' },
 ]
 
 export default function KidLayout() {

@@ -67,7 +67,9 @@ export const TX_ICONS = {
   investment_buy: { icon: '📈', color: 'text-blue-600', bg: 'bg-blue-50', label: 'Bought Stock' },
   investment_sell: { icon: '📉', color: 'text-purple-600', bg: 'bg-purple-50', label: 'Sold Stock' },
   fd_open: { icon: '🔒', color: 'text-yellow-600', bg: 'bg-yellow-50', label: 'Fixed Deposit' },
+  fd_withdrawal: { icon: '🔓', color: 'text-orange-600', bg: 'bg-orange-50', label: 'FD Withdrawn' },
   rd_installment: { icon: '🔒', color: 'text-yellow-600', bg: 'bg-yellow-50', label: 'RD Installment' },
+  rd_withdrawal: { icon: '🔓', color: 'text-orange-600', bg: 'bg-orange-50', label: 'RD Withdrawn' },
   interest_credit: { icon: '✨', color: 'text-green-600', bg: 'bg-green-50', label: 'Interest' },
 }
 
@@ -78,6 +80,15 @@ export const STOCK_EMOJI = {
   CNT: '☁️',
   GGF: '🌱',
   PPG: '🎮',
+}
+
+export const STOCK_CAP = {
+  CNT: 'large',
+  PPG: 'large',
+  MBF: 'mid',
+  ZRM: 'mid',
+  SWE: 'small',
+  GGF: 'small',
 }
 
 export const STOCK_COLOR = {

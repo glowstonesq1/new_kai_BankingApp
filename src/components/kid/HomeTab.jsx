@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import useStore from '../../store/useStore'
 import TransactionList from '../shared/TransactionList'
-import { formatINR, formatPercent } from '../../lib/formatCurrency'
+import { formatINR, formatPercent, timeAgo } from '../../lib/formatCurrency'
 import { getPortfolioValue, getPortfolioCost } from '../../lib/stockHelpers'
 
 const AVATARS = ['🦁', '🐯', '🦊', '🐼', '🦝', '🐸', '🦄', '🐧']
@@ -43,6 +43,7 @@ export default function HomeTab() {
   const { profile, account, stocks } = useStore()
   const [transactions, setTransactions] = useState([])
   const [portfolio, setPortfolio] = useState([])
+  const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function HomeTab() {
   }, [profile])
 
   const loadData = async () => {
-    const [txResult, portResult] = await Promise.all([
+    const [txResult, portResult, commentsResult] = await Promise.all([
       supabase
         .from('transactions')
         .select('*')
@@ -63,10 +64,17 @@ export default function HomeTab() {
         .select('*')
         .eq('user_id', profile.id)
         .gt('quantity', 0),
+      supabase
+        .from('kid_comments')
+        .select('*')
+        .eq('kid_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
     ])
 
     setTransactions(txResult.data || [])
     setPortfolio(portResult.data || [])
+    setComments(commentsResult.data || [])
     setLoading(false)
   }
 
@@ -118,6 +126,21 @@ export default function HomeTab() {
             <p className={`font-display font-800 text-sm ${portfolioGain >= 0 ? 'text-green-600' : 'text-red-500'}`}>
               {formatPercent(portfolioGainPct)}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Admin suggestions */}
+      {comments.length > 0 && (
+        <div className="mx-4 mt-4">
+          <h3 className="font-display font-800 text-gray-800 text-lg mb-3">💬 Suggestions from Admin</h3>
+          <div className="space-y-2">
+            {comments.map((c) => (
+              <div key={c.id} className="bg-purple-50 rounded-2xl p-3 border-l-4 border-kidbank-purple">
+                <p className="font-display font-700 text-gray-700 text-sm">{c.comment}</p>
+                <p className="font-display text-gray-400 text-xs mt-1">{timeAgo(c.created_at)}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -5,6 +5,8 @@ import QRScanner from '../shared/QRScanner'
 import { formatINR, timeAgo } from '../../lib/formatCurrency'
 import toast from 'react-hot-toast'
 
+const TAX_RATE = 0.1
+
 export default function PayTab() {
   const { profile, account, refreshAccount } = useStore()
   const [scanning, setScanning] = useState(false)
@@ -42,11 +44,17 @@ export default function PayTab() {
     setScanned(true)
   }
 
+  const taxAmount = amount ? +(Number(amount) * TAX_RATE).toFixed(2) : 0
+  const totalDeducted = amount ? +(Number(amount) + taxAmount).toFixed(2) : 0
+
   const handlePay = async () => {
     const amt = Number(amount)
     if (!payTo.trim()) { toast.error('Enter who to pay'); return }
     if (!amt || amt <= 0) { toast.error('Enter a valid amount'); return }
-    if (amt > (account?.balance || 0)) { toast.error('Insufficient balance! 😬'); return }
+    if (totalDeducted > (account?.balance || 0)) {
+      toast.error(`Insufficient balance! Total with tax: ${formatINR(totalDeducted)} 😬`)
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -54,19 +62,19 @@ export default function PayTab() {
         user_id: profile.id,
         type: 'payment',
         amount: amt,
-        description: description || `Payment to ${payTo}`,
+        description: description || `Payment to ${payTo} (incl. ${formatINR(taxAmount)} tax)`,
         qr_payload: qrPayload,
       })
 
       await supabase.from('accounts').update({
-        balance: (account?.balance || 0) - amt,
+        balance: (account?.balance || 0) - totalDeducted,
         updated_at: new Date().toISOString(),
       }).eq('user_id', profile.id)
 
       await refreshAccount()
       await loadPayments()
 
-      toast.success(`Paid ${formatINR(amt)} to ${payTo}! 💳`)
+      toast.success(`Paid ${formatINR(amt)} to ${payTo}! (Tax: ${formatINR(taxAmount)}) 💳`)
       setPayTo('')
       setAmount('')
       setDescription('')
@@ -77,6 +85,29 @@ export default function PayTab() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const TaxBreakdown = ({ amt }) => {
+    if (!amt || Number(amt) <= 0) return null
+    const a = Number(amt)
+    const t = +(a * TAX_RATE).toFixed(2)
+    const total = +(a + t).toFixed(2)
+    return (
+      <div className="bg-orange-50 rounded-2xl p-3 text-sm space-y-1">
+        <div className="flex justify-between">
+          <span className="font-display text-gray-500">Payment amount</span>
+          <span className="font-display font-700 text-gray-700">{formatINR(a)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="font-display text-orange-600">Tax (10%)</span>
+          <span className="font-display font-700 text-orange-600">+{formatINR(t)}</span>
+        </div>
+        <div className="flex justify-between border-t border-orange-100 pt-1 mt-1">
+          <span className="font-display font-800 text-gray-800">Total deducted</span>
+          <span className="font-display font-800 text-gray-800">{formatINR(total)}</span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -127,6 +158,8 @@ export default function PayTab() {
               placeholder="e.g. Canteen lunch" className="input-field" />
           </div>
 
+          <TaxBreakdown amt={amount} />
+
           <div className="flex justify-between text-sm">
             <span className="font-display text-gray-400">Balance</span>
             <span className="font-display font-700 text-gray-700">{formatINR(account?.balance || 0)}</span>
@@ -134,7 +167,7 @@ export default function PayTab() {
 
           <button onClick={handlePay} disabled={!amount}
             className="w-full bg-gradient-to-r from-kidbank-purple to-kidbank-pink text-white font-display font-800 py-4 rounded-2xl active:scale-95 transition-all disabled:opacity-50 text-lg">
-            Pay {amount ? formatINR(Number(amount)) : ''} 🚀
+            Pay {amount ? formatINR(totalDeducted) : ''} 🚀
           </button>
           <button onClick={() => { setQrPayload(null); setPayTo(''); setAmount(''); setScanned(false) }}
             className="w-full text-gray-400 font-display font-700 text-sm py-2">
@@ -186,6 +219,8 @@ export default function PayTab() {
                 placeholder="e.g. Canteen lunch" className="input-field" />
             </div>
 
+            <TaxBreakdown amt={amount} />
+
             <div className="flex justify-between text-sm">
               <span className="font-display text-gray-400">Your balance</span>
               <span className="font-display font-700 text-gray-700">{formatINR(account?.balance || 0)}</span>
@@ -193,7 +228,7 @@ export default function PayTab() {
 
             <button onClick={handlePay} disabled={submitting || !payTo || !amount}
               className="w-full bg-kidbank-purple text-white font-display font-800 py-4 rounded-2xl active:scale-95 transition-all disabled:opacity-50 text-lg">
-              {submitting ? 'Processing…' : `Pay ${amount ? formatINR(Number(amount)) : ''} 🚀`}
+              {submitting ? 'Processing…' : `Pay ${amount ? formatINR(totalDeducted) : ''} 🚀`}
             </button>
           </div>
         </>

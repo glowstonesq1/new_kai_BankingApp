@@ -7,7 +7,7 @@ import {
 } from '../../lib/formatCurrency'
 import {
   getPriceChange, getFDMaturityAmount, getRDMaturityAmount,
-  daysUntil, timeUntilLabel, fdMaturityDate, rdNextDueDate, STOCK_EMOJI, STOCK_COLOR
+  daysUntil, timeUntilLabel, fdMaturityDate, rdNextDueDate, STOCK_EMOJI, STOCK_COLOR, STOCK_CAP
 } from '../../lib/stockHelpers'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -15,6 +15,12 @@ import {
 import toast from 'react-hot-toast'
 
 const TABS = ['Stocks', 'Fixed Deposit', 'Recurring Deposit']
+
+const CAP_STYLE = {
+  large: { label: 'Large Cap', bg: 'bg-blue-100', text: 'text-blue-700' },
+  mid: { label: 'Mid Cap', bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  small: { label: 'Small Cap', bg: 'bg-green-100', text: 'text-green-700' },
+}
 
 // --- Stock Detail Modal ---
 function StockDetail({ stock, onClose, portfolio, onTrade }) {
@@ -29,12 +35,15 @@ function StockDetail({ stock, onClose, portfolio, onTrade }) {
   const { pct, direction } = getPriceChange(stock.current_price, stock.previous_price)
   const emoji = STOCK_EMOJI[stock.ticker] || '📊'
   const color = STOCK_COLOR[stock.ticker] || '#7C3AED'
+  const cap = STOCK_CAP[stock.ticker]
+  const capStyle = cap ? CAP_STYLE[cap] : null
   const total = (Number(qty) || 0) * stock.current_price
+  const tax = +(total * 0.1).toFixed(2)
+  const netProceeds = +(total - tax).toFixed(2)
   const canSell = holding && Number(qty) <= holding.quantity && Number(qty) > 0
   const canBuy = total > 0 && total <= (account?.balance || 0)
 
   useEffect(() => {
-    // Load news + simulate price history from current/previous
     supabase
       .from('news')
       .select('*')
@@ -44,7 +53,6 @@ function StockDetail({ stock, onClose, portfolio, onTrade }) {
       .limit(5)
       .then(({ data }) => setNews(data || []))
 
-    // Build fake 24-tick history from current and previous price
     const ticks = []
     for (let i = 23; i >= 0; i--) {
       const variance = (Math.random() - 0.5) * 0.04
@@ -82,7 +90,14 @@ function StockDetail({ stock, onClose, portfolio, onTrade }) {
             </div>
             <div>
               <p className="font-display font-800 text-gray-800">{stock.company_name}</p>
-              <p className="font-display font-700 text-gray-400 text-xs">{stock.ticker}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-display font-700 text-gray-400 text-xs">{stock.ticker}</p>
+                {capStyle && (
+                  <span className={`text-[10px] font-display font-700 px-1.5 py-0.5 rounded-full ${capStyle.bg} ${capStyle.text}`}>
+                    {capStyle.label}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
@@ -165,15 +180,30 @@ function StockDetail({ stock, onClose, portfolio, onTrade }) {
               className="input-field mb-2"
               min="1"
             />
-            {qty && (
-              <p className="font-display font-700 text-gray-500 text-sm mb-3">
-                Total: <span className="text-gray-800 font-800">{formatINR(total)}</span>
-                {mode === 'buy' && (
+            {qty && Number(qty) > 0 && (
+              mode === 'sell' ? (
+                <div className="bg-red-50 rounded-xl p-2.5 text-xs mb-3 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="font-display text-gray-500">Gross proceeds</span>
+                    <span className="font-display font-700 text-gray-700">{formatINR(total)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-display text-red-500">Capital gains tax (10%)</span>
+                    <span className="font-display font-700 text-red-500">-{formatINR(tax)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-red-100 pt-1 mt-1">
+                    <span className="font-display font-700 text-gray-700">You receive</span>
+                    <span className="font-display font-800 text-green-600">{formatINR(netProceeds)}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="font-display font-700 text-gray-500 text-sm mb-3">
+                  Total: <span className="text-gray-800 font-800">{formatINR(total)}</span>
                   <span className="text-gray-400 ml-2 text-xs">
                     (Balance: {formatINR(account?.balance || 0)})
                   </span>
-                )}
-              </p>
+                </p>
+              )
             )}
             <button
               onClick={handleTrade}
@@ -218,6 +248,7 @@ function FDSection({ userId }) {
   const [fds, setFds] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [withdrawingFdId, setWithdrawingFdId] = useState(null)
 
   useEffect(() => { loadFDs() }, [userId])
 
@@ -252,7 +283,6 @@ function FDSection({ userId }) {
     })
 
     if (error) {
-      // Fallback: direct insert + transaction
       const { error: e2 } = await supabase.from('fixed_deposits').insert({
         user_id: userId,
         principal,
@@ -280,6 +310,28 @@ function FDSection({ userId }) {
     setAmount('')
     toast.success('Fixed Deposit created! 🔒')
     setSubmitting(false)
+  }
+
+  const handleFDWithdraw = async (fd) => {
+    const penalty = +(fd.principal * 0.02).toFixed(2)
+    const returnAmt = +(fd.principal - penalty).toFixed(2)
+
+    await supabase.from('fixed_deposits').update({ is_matured: true }).eq('id', fd.id)
+    await supabase.from('accounts').update({
+      balance: (account?.balance || 0) + returnAmt,
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', userId)
+    await supabase.from('transactions').insert({
+      user_id: userId,
+      type: 'fd_withdrawal',
+      amount: returnAmt,
+      description: `FD Early Withdrawal — 2% penalty: ${formatINR(penalty)}`,
+    })
+
+    await refreshAccount()
+    await loadFDs()
+    setWithdrawingFdId(null)
+    toast.success(`Got back ${formatINR(returnAmt)} after 2% penalty 🔓`)
   }
 
   return (
@@ -337,12 +389,41 @@ function FDSection({ userId }) {
                   <span className="font-display font-700 text-gray-700">{formatINR(fd.principal)}</span>
                   <span className="font-display font-700 text-yellow-600">{fd.interest_rate}% p.a.</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm mb-2">
                   <span className="font-body text-gray-500">{fd.duration_days} days</span>
                   <span className="font-display font-700 text-orange-500">
                     {timeUntilLabel(fd.maturity_date)} left
                   </span>
                 </div>
+                {withdrawingFdId === fd.id ? (
+                  <div className="bg-red-50 rounded-xl p-2.5 text-xs space-y-1.5">
+                    <p className="font-display font-700 text-red-600">
+                      Early withdrawal: 2% penalty = {formatINR(+(fd.principal * 0.02).toFixed(2))}<br />
+                      You get back: {formatINR(+(fd.principal * 0.98).toFixed(2))}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleFDWithdraw(fd)}
+                        className="flex-1 bg-red-500 text-white font-display font-700 py-1.5 rounded-lg text-xs"
+                      >
+                        Confirm Withdraw
+                      </button>
+                      <button
+                        onClick={() => setWithdrawingFdId(null)}
+                        className="flex-1 bg-gray-200 text-gray-600 font-display font-700 py-1.5 rounded-lg text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setWithdrawingFdId(fd.id)}
+                    className="w-full text-xs font-display font-700 text-orange-500 hover:text-red-500 transition-colors py-1"
+                  >
+                    Withdraw Early (2% penalty)
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -360,6 +441,7 @@ function RDSection({ userId }) {
   const [rate] = useState(6)
   const [rds, setRds] = useState([])
   const [submitting, setSubmitting] = useState(false)
+  const [withdrawingRdId, setWithdrawingRdId] = useState(null)
 
   useEffect(() => { loadRDs() }, [userId])
 
@@ -410,6 +492,29 @@ function RDSection({ userId }) {
     setMonthly('')
     toast.success('RD Started! 🎉')
     setSubmitting(false)
+  }
+
+  const handleRDWithdraw = async (rd) => {
+    const totalPaid = +(rd.monthly_amount * rd.installments_paid).toFixed(2)
+    const penalty = +(totalPaid * 0.05).toFixed(2)
+    const returnAmt = +(totalPaid - penalty).toFixed(2)
+
+    await supabase.from('recurring_deposits').update({ is_active: false }).eq('id', rd.id)
+    await supabase.from('accounts').update({
+      balance: (account?.balance || 0) + returnAmt,
+      updated_at: new Date().toISOString(),
+    }).eq('user_id', userId)
+    await supabase.from('transactions').insert({
+      user_id: userId,
+      type: 'rd_withdrawal',
+      amount: returnAmt,
+      description: `RD Early Withdrawal — 5% penalty: ${formatINR(penalty)}`,
+    })
+
+    await refreshAccount()
+    await loadRDs()
+    setWithdrawingRdId(null)
+    toast.success(`Got back ${formatINR(returnAmt)} after 5% penalty 🔓`)
   }
 
   return (
@@ -469,7 +574,7 @@ function RDSection({ userId }) {
                   </span>
                   <span className="font-display font-700 text-green-600">{rd.interest_rate}% p.a.</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm mb-2">
                   <span className="font-body text-gray-500">
                     {rd.installments_paid}/{rd.duration_months} paid
                   </span>
@@ -477,6 +582,36 @@ function RDSection({ userId }) {
                     Next: {timeUntilLabel(rd.next_due_date)}
                   </span>
                 </div>
+                {withdrawingRdId === rd.id ? (
+                  <div className="bg-red-50 rounded-xl p-2.5 text-xs space-y-1.5">
+                    <p className="font-display font-700 text-red-600">
+                      Paid so far: {formatINR(rd.monthly_amount * rd.installments_paid)}<br />
+                      5% penalty: {formatINR(+(rd.monthly_amount * rd.installments_paid * 0.05).toFixed(2))}<br />
+                      You get back: {formatINR(+(rd.monthly_amount * rd.installments_paid * 0.95).toFixed(2))}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRDWithdraw(rd)}
+                        className="flex-1 bg-red-500 text-white font-display font-700 py-1.5 rounded-lg text-xs"
+                      >
+                        Confirm Withdraw
+                      </button>
+                      <button
+                        onClick={() => setWithdrawingRdId(null)}
+                        className="flex-1 bg-gray-200 text-gray-600 font-display font-700 py-1.5 rounded-lg text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setWithdrawingRdId(rd.id)}
+                    className="w-full text-xs font-display font-700 text-orange-500 hover:text-red-500 transition-colors py-1"
+                  >
+                    Withdraw Early (5% penalty)
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -558,6 +693,8 @@ export default function InvestTab() {
       }
 
       const proceeds = stock.current_price * quantity
+      const tax = +(proceeds * 0.1).toFixed(2)
+      const netProceeds = +(proceeds - tax).toFixed(2)
       const newQty = holding.quantity - quantity
 
       if (newQty === 0) {
@@ -569,16 +706,16 @@ export default function InvestTab() {
       await supabase.from('transactions').insert({
         user_id: profile.id,
         type: 'investment_sell',
-        amount: proceeds,
-        description: `Sold ${quantity} ${stock.ticker} @ ${formatINR(stock.current_price)}`,
+        amount: netProceeds,
+        description: `Sold ${quantity} ${stock.ticker} @ ${formatINR(stock.current_price)} (10% tax: ${formatINR(tax)})`,
       })
 
       await supabase.from('accounts').update({
-        balance: balance + proceeds,
+        balance: balance + netProceeds,
         updated_at: new Date().toISOString(),
       }).eq('user_id', profile.id)
 
-      toast.success(`Sold ${quantity} ${stock.ticker}! 💰`)
+      toast.success(`Sold! Got ${formatINR(netProceeds)} after 10% tax 💰`)
     }
 
     await refreshAccount()
