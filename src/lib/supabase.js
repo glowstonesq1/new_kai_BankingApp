@@ -15,9 +15,22 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   },
 })
 
-// Admin client — bypasses RLS and email confirmation. Only use server-side actions.
-export const supabaseAdmin = supabaseServiceKey
-  ? createClient(supabaseUrl || '', supabaseServiceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    })
-  : null
+// Calls the Supabase Admin REST API directly — no second GoTrueClient,
+// no localStorage conflicts with the main supabase client.
+export async function adminCreateUser({ email, password, user_metadata }) {
+  if (!supabaseServiceKey) {
+    return { data: null, error: { message: 'VITE_SUPABASE_SERVICE_ROLE_KEY is not set' } }
+  }
+  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseServiceKey}`,
+      'apikey': supabaseServiceKey,
+    },
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata }),
+  })
+  const json = await res.json()
+  if (!res.ok) return { data: null, error: { message: json.msg || json.message || 'Admin API error' } }
+  return { data: { user: json }, error: null }
+}
