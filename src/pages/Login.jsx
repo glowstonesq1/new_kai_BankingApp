@@ -21,9 +21,18 @@ export default function Login() {
 
     setLoading(true)
     try {
-      // Sign in first — RLS blocks reading public.users before auth
-      const email = `${username.trim().toLowerCase()}@kidbank.app`
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const uname = username.trim().toLowerCase()
+
+      // Try current domain first, fall back to legacy domain for old accounts
+      let data, error
+      ;({ data, error } = await supabase.auth.signInWithPassword({
+        email: `${uname}@muso.internal`, password,
+      }))
+      if (error) {
+        ;({ data, error } = await supabase.auth.signInWithPassword({
+          email: `${uname}@kidbank.app`, password,
+        }))
+      }
 
       if (error) {
         toast.error('Wrong username or password. Try again!')
