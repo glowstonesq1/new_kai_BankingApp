@@ -24,41 +24,18 @@ function CreateKidModal({ onClose, onCreated }) {
 
     setLoading(true)
     try {
-      const uname = username.trim().toLowerCase()
-      const dname = displayName.trim()
-      const email = `${uname}@kidbank.app`
-
-      const { data: existing } = await supabase
-        .from('users').select('id').eq('username', uname).maybeSingle()
-      if (existing) { toast.error('Username already taken'); setLoading(false); return }
-
-      const { data: { session: adminSession } } = await supabase.auth.getSession()
-
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { username: uname, display_name: dname, role: 'kid' } },
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          username: username.trim().toLowerCase(),
+          display_name: displayName.trim(),
+          password,
+        },
       })
 
-      if (adminSession) {
-        await supabase.auth.setSession({
-          access_token: adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        })
-      }
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
 
-      if (signUpError) throw signUpError
-      if (!signUpData?.user) throw new Error('User creation failed')
-      if (signUpData.user.identities?.length === 0) throw new Error('Email already in use')
-
-      const uid = signUpData.user.id
-
-      await supabase.from('users').upsert({
-        id: uid, username: uname, display_name: dname, role: 'kid', is_frozen: false,
-      }, { onConflict: 'id' })
-      await supabase.from('accounts').upsert({ user_id: uid, balance: 0 }, { onConflict: 'user_id' })
-
-      toast.success(`Account created for ${dname}! 🎉`)
+      toast.success(`Account created for ${displayName.trim()}! 🎉`)
       onCreated()
       onClose()
     } catch (err) {
