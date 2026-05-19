@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import useStore from '../../store/useStore'
 import { formatINR, timeAgo } from '../../lib/formatCurrency'
 import TransactionList from '../shared/TransactionList'
@@ -21,37 +21,33 @@ function CreateKidModal({ onClose, onCreated }) {
       toast.error('Password must be at least 6 characters')
       return
     }
+    if (!supabaseAdmin) {
+      toast.error('Service role key not configured — add VITE_SUPABASE_SERVICE_ROLE_KEY to your .env')
+      return
+    }
 
     setLoading(true)
     try {
       const uname = username.trim().toLowerCase()
       const dname = displayName.trim()
-      const email = `${uname}@kidbank.app`
+      const email = `${uname}@muso.internal`
 
       const { data: existing } = await supabase
         .from('users').select('id').eq('username', uname).maybeSingle()
       if (existing) { toast.error('Username already taken'); setLoading(false); return }
 
-      const { data: { session: adminSession } } = await supabase.auth.getSession()
-
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      // Use admin API — creates user immediately without email confirmation
+      const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
-        options: { data: { username: uname, display_name: dname, role: 'kid' } },
+        email_confirm: true,
+        user_metadata: { username: uname, display_name: dname, role: 'kid' },
       })
 
-      if (adminSession) {
-        await supabase.auth.setSession({
-          access_token: adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        })
-      }
+      if (createErr) throw createErr
+      if (!created?.user) throw new Error('User creation failed')
 
-      if (signUpError) throw signUpError
-      if (!signUpData?.user) throw new Error('User creation failed')
-      if (signUpData.user.identities?.length === 0) throw new Error('Email already in use')
-
-      const uid = signUpData.user.id
+      const uid = created.user.id
 
       await supabase.from('users').upsert({
         id: uid, username: uname, display_name: dname, role: 'kid', is_frozen: false,
