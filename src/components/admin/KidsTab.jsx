@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, adminCreateUser } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import useStore from '../../store/useStore'
 import { formatINR, timeAgo } from '../../lib/formatCurrency'
 import TransactionList from '../shared/TransactionList'
