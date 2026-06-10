@@ -21,34 +21,20 @@ function CreateKidModal({ onClose, onCreated }) {
       toast.error('Password must be at least 6 characters')
       return
     }
-    setLoading(true)
+        setLoading(true)
     try {
-      const uname = username.trim().toLowerCase()
-      const dname = displayName.trim()
-      const email = `${uname}@muso.internal`
-
-      const { data: existing } = await supabase
-        .from('users').select('id').eq('username', uname).maybeSingle()
-      if (existing) { toast.error('Username already taken'); setLoading(false); return }
-
-      // Use Admin REST API directly — avoids second GoTrueClient / auth conflicts
-      const { data: created, error: createErr } = await adminCreateUser({
-        email,
-        password,
-        user_metadata: { username: uname, display_name: dname, role: 'kid' },
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          username: username.trim().toLowerCase(),
+          display_name: displayName.trim(),
+          password,
+        },
       })
 
-      if (createErr) throw createErr
-      if (!created?.user) throw new Error('User creation failed')
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
 
-      const uid = created.user.id
-
-      await supabase.from('users').upsert({
-        id: uid, username: uname, display_name: dname, role: 'kid', is_frozen: false,
-      }, { onConflict: 'id' })
-      await supabase.from('accounts').upsert({ user_id: uid, balance: 0 }, { onConflict: 'user_id' })
-
-      toast.success(`Account created for ${dname}! 🎉`)
+      toast.success(`Account created for ${displayName.trim()}! 🎉`)
       onCreated()
       onClose()
     } catch (err) {
